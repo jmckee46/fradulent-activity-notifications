@@ -1,38 +1,107 @@
 package main
 
-import "fmt"
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"os"
+	"strconv"
+	"strings"
+)
 
 func activityNotifications(expenditure []int32, d int32) int32 {
 	numTrailDays := d
 	expeditureLength := int32(len(expenditure))
 	var median float32
 	var notifications int32
+	rangeLength := int32(201) //0-200 = 201
+	countArr := make([]int32, rangeLength)
 
+	// prime the countArr
+	for i := int32(0); i < numTrailDays; i++ {
+		countArr[expenditure[i]]++
+	}
+
+	// begin
 	for day := int32(numTrailDays); day < expeditureLength; day++ {
-		begin := day - numTrailDays
-		fmt.Println("unsortedTrailingDays:", expenditure[begin:day])
-		sortedTrailingDays := mergeSort(expenditure[begin:day])
 
-		fmt.Println("sortedTrailingDays:", sortedTrailingDays)
+		mid := (numTrailDays / 2) + 1
+		midMinus1 := mid - 1
+		temp := int32(0)
+		found := false
 
-		// calculate median spending
 		if numTrailDays%2 == 0 {
-			median = (float32(sortedTrailingDays[numTrailDays/2-1] + sortedTrailingDays[numTrailDays/2])) / 2.0
+			for index, value := range countArr {
+				temp += value
+				if temp >= midMinus1 && temp >= mid && !found {
+					median = float32(index)
+					break
+				} else if temp >= midMinus1 && temp < mid && !found {
+					median = float32(index)
+					found = true
+				} else if temp >= mid {
+					median = float32((median + float32(index)) / 2)
+					break
+				}
+			}
 		} else {
-			median = float32(sortedTrailingDays[numTrailDays/2])
+			for index, value := range countArr {
+				temp += value
+				if temp >= mid {
+					median = float32(index)
+					break
+				}
+			}
 		}
-		fmt.Println("median:", median, "median*2", median*2)
-		fmt.Printf("day is %d, amount is %d\n", day, expenditure[day])
 
 		// determine if notification is warrented
 		if float32(expenditure[day]) >= median*2 {
 			notifications++
-			fmt.Println("notification sent")
 		}
-		fmt.Println("")
+
+		// adjust count array
+		deleteValue := expenditure[day-numTrailDays]
+		countArr[deleteValue]--
+		addValue := expenditure[day]
+		countArr[addValue]++
 	}
 
 	return notifications
+}
+
+func countingSort(arr []int32) []int32 {
+	fmt.Println("arr:", arr)
+	rangeLength := int32(10) //0-200 = 201
+	countArr := make([]int32, rangeLength)
+	arrLength := int32(len(arr))
+
+	for i := int32(0); i < arrLength; i++ {
+		countArr[arr[i]]++
+	}
+	fmt.Println("countArr:", countArr)
+
+	return fillFromCount(countArr, arr, arrLength, rangeLength)
+}
+
+func fillFromCount(countArr []int32, arr []int32, arrLength int32, rangeLength int32) []int32 {
+	// sum the countArr
+	for i := int32(1); i < rangeLength; i++ {
+		countArr[i] = countArr[i-1] + countArr[i]
+	}
+	fmt.Println("countArr:", countArr)
+
+	// fill in sortedArr
+	sortedArr := make([]int32, arrLength)
+
+	for _, value := range arr {
+		if countArr[value] > 0 {
+			sortedArr[countArr[value]-1] = value
+			countArr[value]--
+		}
+	}
+	fmt.Println("sortedArr:", sortedArr)
+
+	return nil
 }
 
 func mergeSort(arr []int32) []int32 {
@@ -86,4 +155,58 @@ func merge(left, right []int32) []int32 {
 	return result
 }
 
-func main() {}
+func main() {
+	file, err := os.Open("test-case-5")
+	checkError(err)
+
+	reader := bufio.NewReaderSize(file, 1024*1024)
+
+	stdout, err := os.Create("test-case-5-OUTPUT")
+	checkError(err)
+
+	defer stdout.Close()
+
+	writer := bufio.NewWriterSize(stdout, 1024*1024)
+
+	nd := strings.Split(readLine(reader), " ")
+
+	nTemp, err := strconv.ParseInt(nd[0], 10, 64)
+	checkError(err)
+	n := int32(nTemp)
+
+	dTemp, err := strconv.ParseInt(nd[1], 10, 64)
+	checkError(err)
+	d := int32(dTemp)
+
+	expenditureTemp := strings.Split(readLine(reader), " ")
+
+	var expenditure []int32
+
+	for i := 0; i < int(n); i++ {
+		expenditureItemTemp, err := strconv.ParseInt(expenditureTemp[i], 10, 64)
+		checkError(err)
+		expenditureItem := int32(expenditureItemTemp)
+		expenditure = append(expenditure, expenditureItem)
+	}
+
+	result := activityNotifications(expenditure, d)
+
+	fmt.Fprintf(writer, "%d\n", result)
+
+	writer.Flush()
+}
+
+func readLine(reader *bufio.Reader) string {
+	str, _, err := reader.ReadLine()
+	if err == io.EOF {
+		return ""
+	}
+
+	return strings.TrimRight(string(str), "\r\n")
+}
+
+func checkError(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
